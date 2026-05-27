@@ -1322,6 +1322,10 @@ function handleOCRFile(input) {
 async function runOCR(dataUrl) {
   let worker;
   try {
+    if (!window.Tesseract || typeof Tesseract.createWorker !== 'function') {
+      throw new Error('OCR engine ไม่พร้อมใช้งาน');
+    }
+
     worker = Tesseract.createWorker({
       logger: m => {
         if (m.status==='recognizing text' && m.progress) {
@@ -1331,14 +1335,16 @@ async function runOCR(dataUrl) {
     });
 
     await worker.load();
-    await worker.loadLanguage('tha+eng');
+    await worker.loadLanguage('tha');
+    await worker.loadLanguage('eng');
     await worker.initialize('tha+eng');
 
     const { data:{text} } = await worker.recognize(dataUrl);
     parseOCRText(text);
   } catch(err) {
     console.error('OCR error', err);
-    setOCRStatus('error','❌ สแกนไม่สำเร็จ: '+err.message);
+    const message = err?.message || (typeof err === 'string' ? err : String(err));
+    setOCRStatus('error','❌ สแกนไม่สำเร็จ: '+(message || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
   } finally {
     if (worker) {
       try { await worker.terminate(); } catch(e) { console.warn('OCR worker terminate failed', e); }
