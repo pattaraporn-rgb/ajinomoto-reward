@@ -536,16 +536,17 @@
       <div class="card">
         <div class="card-header">
           <div class="ch-icon" style="background:rgba(128,90,213,.12)">👥</div>
-          <div><h3>จัดการผู้ใช้งาน</h3><p>เพิ่ม/ลบผู้ใช้งาน และกำหนดสิทธิ์</p></div>
+          <div><h3>จัดการผู้ใช้งาน</h3><p>อ่านผู้ใช้จาก Google Sheet แท็บ Users และ fallback เป็นข้อมูลใน Browser</p></div>
         </div>
         <div class="card-body">
+          <div id="user-source-note" style="background:#f8f9fc;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text);line-height:1.7"></div>
           <div style="overflow-x:auto;margin-bottom:20px">
             <table class="rw-table">
               <thead><tr><th>ชื่อเล่น</th><th>ตำแหน่ง</th><th>PIN</th><th></th></tr></thead>
               <tbody id="users-tbody"></tbody>
             </table>
           </div>
-          <div style="background:#f8f9fc;border:1.5px solid var(--border);border-radius:12px;padding:16px">
+          <div id="local-user-form" style="background:#f8f9fc;border:1.5px solid var(--border);border-radius:12px;padding:16px">
             <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">+ เพิ่มผู้ใช้ใหม่</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
               <div class="form-group" style="margin:0">
@@ -630,11 +631,38 @@ const DEFAULT = [
 // ══════════════════════════════
 // STATE
 // ══════════════════════════════
+const DEFAULT_GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1QA_m_FW5wVX16jmkpnj2nmvL9HQa0dyHnCYRf1l_vq8/edit?usp=sharing';
+const USER_SHEET_NAME = 'Users';
 let rewards  = JSON.parse(localStorage.getItem('ajn2_rewards') || 'null') || DEFAULT;
 let history  = JSON.parse(localStorage.getItem('ajn2_history') || '[]');
 let entrySeq = 0;
 const saveR  = () => localStorage.setItem('ajn2_rewards', JSON.stringify(rewards));
 const saveH  = () => localStorage.setItem('ajn2_history', JSON.stringify(history));
+
+function getSpreadsheetId(raw) {
+  const m = String(raw||'').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+
+function buildGvizUrl(raw, sheetName='') {
+  const sheetId = getSpreadsheetId(raw);
+  if (!sheetId) return '';
+  const tab = sheetName ? `&sheet=${encodeURIComponent(sheetName)}` : '';
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json${tab}`;
+}
+
+function parseGvizJson(text) {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < start) throw new Error('Invalid Google Sheets response');
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+function sheetCell(row, index) {
+  const cell = row?.c?.[index];
+  if (!cell) return '';
+  return String(cell.f ?? cell.v ?? '').trim();
+}
 
 // ══════════════════════════════
 // NAV
@@ -873,20 +901,15 @@ async function syncSheet() {
   const raw = document.getElementById('sheet-url').value.trim();
   if(!raw){ alert('กรุณาวาง URL ของ Google Sheets'); return; }
 
-  // Extract spreadsheet ID
-  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if(!m){ showSyncStatus('error','❌ URL ไม่ถูกต้อง'); return; }
-  const sheetId = m[1];
+  const url = buildGvizUrl(raw);
+  if(!url){ showSyncStatus('error','❌ URL ไม่ถูกต้อง'); return; }
 
   showSyncStatus('loading','⏳ กำลังโหลด...');
 
-  // Use gviz/tq endpoint (supports CORS for public sheets)
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
   try {
     const res  = await fetch(url);
     const text = await res.text();
-    // strip Google's JSONP wrapper
-    const json = JSON.parse(text.replace(/^[^{]+/, '').replace(/[^}]+$/, ''));
+    const json = parseGvizJson(text);
     const rows = json.table.rows;
     const cols = json.table.cols;
 
@@ -908,7 +931,7 @@ async function syncSheet() {
       if(!name || !pts || isNaN(pts)) return;
       // guess unit from name
       const unit = guessUnit(name);
-      parsed.push(name, pts, unit);
+      parsed.push({name, pts, unit});
     });
 
     if(!parsed.length){ showSyncStatus('error','❌ ไม่สามารถอ่านข้อมูลได้'); return; }
@@ -1099,17 +1122,105 @@ function showCSVStatus(type, msg) {
 // ══════════════════════════════
 let currentUser = null;
 let _ocrParsed  = {name:'', phone:'', items:[]};
+let usersCache = null;
+let userSource = 'local';
+let userLoadError = '';
+const LOGIN_ENABLED = false;
 
-function loadUsers() { return JSON.parse(localStorage.getItem('ajn2_users')||'[]'); }
-function saveUsers(u){ localStorage.setItem('ajn2_users', JSON.stringify(u)); }
+function loadLocalUsers() { return JSON.parse(localStorage.getItem('ajn2_users')||'[]'); }
+function saveLocalUsers(u){
+  localStorage.setItem('ajn2_users', JSON.stringify(u));
+  usersCache = u;
+  userSource = 'local';
+}
 
 async function hashPin(pin) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+function normalizeRole(role) {
+  const v = String(role||'').trim().toLowerCase();
+  const map = {
+    owner:'owner', admin:'admin', dev:'dev', cs:'cs',
+    เจ้าของ:'owner', แอดมิน:'admin', ผู้ดูแล:'admin'
+  };
+  return map[v] || v;
+}
+
+function isActiveUserFlag(value) {
+  const v = String(value ?? '').trim().toLowerCase();
+  return !['0','false','no','n','inactive','disabled','ปิด','ไม่ใช้'].includes(v);
+}
+
+async function loadSheetUsers() {
+  const url = buildGvizUrl(DEFAULT_GOOGLE_SHEET_URL, USER_SHEET_NAME);
+  if (!url) return [];
+
+  try {
+    const res = await fetch(url, {cache:'no-store'});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = parseGvizJson(await res.text());
+    const rows = json.table?.rows || [];
+    const parsed = [];
+
+    for (let i=0; i<rows.length; i++) {
+      const nick = sheetCell(rows[i], 0);
+      const role = normalizeRole(sheetCell(rows[i], 1));
+      let pin = sheetCell(rows[i], 2);
+      const active = sheetCell(rows[i], 3);
+      const isHeader = ['nick','nickname','ชื่อเล่น'].includes(nick.toLowerCase()) ||
+        ['role','ตำแหน่ง'].includes(role.toLowerCase());
+
+      if (isHeader || !nick || !role || !pin || !isActiveUserFlag(active)) continue;
+      pin = String(pin).replace(/\D/g, '');
+      if (!/^\d{1,4}$/.test(pin) || !['owner','admin','dev','cs'].includes(role)) continue;
+      pin = pin.padStart(4, '0');
+
+      parsed.push({
+        id: `sheet-${i + 1}-${role}-${nick.toLowerCase()}`,
+        nick,
+        role,
+        pinHash: await hashPin(pin),
+        source: 'sheet'
+      });
+    }
+
+    userLoadError = '';
+    return parsed;
+  } catch(e) {
+    console.warn('Cannot load users from Google Sheet', e);
+    userLoadError = e.message || 'Cannot load Google Sheet';
+    return [];
+  }
+}
+
+async function loadUsers(force=false) {
+  if (!force && usersCache) return usersCache;
+
+  const sheetUsers = await loadSheetUsers();
+  if (sheetUsers.length) {
+    usersCache = sheetUsers;
+    userSource = 'sheet';
+    return usersCache;
+  }
+
+  usersCache = loadLocalUsers();
+  userSource = 'local';
+  return usersCache;
+}
+
 async function initAuth() {
-  const users = loadUsers();
+  if (!LOGIN_ENABLED) {
+    currentUser = {id:'guest-owner', nick:'Owner', role:'owner', loginAt:new Date().toISOString()};
+    sessionStorage.setItem('ajn2_session', JSON.stringify(currentUser));
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'none';
+    applySession();
+    return;
+  }
+
+  const users = await loadUsers(true);
   const sess  = JSON.parse(sessionStorage.getItem('ajn2_session')||'null');
 
   // Valid session that matches a real user
@@ -1141,7 +1252,7 @@ async function doSetup() {
   if (!/^\d{4}$/.test(pin)){ errEl.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; errEl.style.display='block'; return; }
   if (pin !== pin2)        { errEl.textContent='PIN ทั้งสองไม่ตรงกัน'; errEl.style.display='block'; return; }
   const pinHash = await hashPin(pin);
-  saveUsers([{id:1, nick, role:'owner', pinHash}]);
+  saveLocalUsers([{id:1, nick, role:'owner', pinHash}]);
   const sess = {id:1, nick, role:'owner', loginAt:new Date().toISOString()};
   sessionStorage.setItem('ajn2_session', JSON.stringify(sess));
   currentUser = sess;
@@ -1158,11 +1269,13 @@ async function doLogin() {
   errEl.style.display = 'none';
   if (!nick)               { errEl.textContent='กรุณากรอกชื่อเล่น'; errEl.style.display='block'; return; }
   if (!/^\d{4}$/.test(pin)){ errEl.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; errEl.style.display='block'; return; }
-  const users   = loadUsers()||[];
+  const users   = await loadUsers(true);
   const pinHash = await hashPin(pin);
   const user    = users.find(u=>u.nick.toLowerCase()===nick.toLowerCase()&&u.role===role&&u.pinHash===pinHash);
   if (!user) {
-    errEl.textContent = 'ชื่อเล่น, ตำแหน่ง หรือ PIN ไม่ถูกต้อง';
+    errEl.textContent = userSource==='sheet'
+      ? 'ชื่อเล่น, ตำแหน่ง หรือ PIN ไม่ตรงกับแท็บ Users ใน Google Sheet'
+      : 'ชื่อเล่น, ตำแหน่ง หรือ PIN ไม่ถูกต้อง';
     errEl.style.display = 'block';
     document.getElementById('login-pin').value = '';
     return;
@@ -1232,10 +1345,18 @@ function clearLog() {
 // ══════════════════════════════
 // USER MANAGEMENT
 // ══════════════════════════════
-function renderUserTable() {
-  const users = loadUsers()||[];
+async function renderUserTable() {
+  const users = await loadUsers(true);
   const el = document.getElementById('users-tbody');
   if (!el) return;
+  const note = document.getElementById('user-source-note');
+  const localForm = document.getElementById('local-user-form');
+  if (note) {
+    note.innerHTML = userSource==='sheet'
+      ? `กำลังใช้ Google Sheet แท็บ <strong>${USER_SHEET_NAME}</strong> เป็นฐานข้อมูลผู้ใช้: คอลัมน์ A = ชื่อเล่น, B = ตำแหน่ง, C = PIN, D = active (เว้นว่างหรือ TRUE = ใช้งาน)`
+      : `ยังไม่พบแท็บ <strong>${USER_SHEET_NAME}</strong> ที่อ่านได้ จึงใช้ข้อมูลผู้ใช้ใน Browser เครื่องนี้${userLoadError?` <br><span style="color:var(--red)">Google Sheet: ${userLoadError}</span>`:''}`;
+  }
+  if (localForm) localForm.style.display = userSource==='sheet' ? 'none' : 'block';
   const rl={owner:'Owner',admin:'Admin',dev:'Dev',cs:'CS'};
   const rc={owner:'#805ad5',admin:'#3182ce',dev:'#38a169',cs:'#dd6b20'};
   el.innerHTML = users.map(u=>`
@@ -1243,7 +1364,7 @@ function renderUserTable() {
       <td style="font-weight:600;color:var(--navy)">${u.nick}</td>
       <td><span style="background:${(rc[u.role]||'#718096')}22;color:${rc[u.role]||'#718096'};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${rl[u.role]||u.role}</span></td>
       <td style="color:var(--muted);font-size:13px;letter-spacing:4px">••••</td>
-      <td>${(currentUser&&u.id!==currentUser.id)?`<button class="btn-icon" onclick="deleteUser(${u.id})">🗑</button>`:'—'}</td>
+      <td>${(userSource==='local'&&currentUser&&u.id!==currentUser.id)?`<button class="btn-icon" onclick="deleteUser(${u.id})">🗑</button>`:'—'}</td>
     </tr>`).join('');
 }
 
@@ -1253,14 +1374,18 @@ async function addUserForm() {
   const pin  = document.getElementById('new-user-pin').value.trim();
   if (!nick)               { alert('กรุณากรอกชื่อเล่น'); return; }
   if (!/^\d{4}$/.test(pin)){ alert('PIN ต้องเป็นตัวเลข 4 หลัก'); return; }
-  const users = loadUsers()||[];
+  const users = await loadUsers();
+  if (userSource==='sheet') {
+    alert('ระบบอ่านผู้ใช้จาก Google Sheet แล้ว ให้เพิ่ม/แก้ผู้ใช้ในแท็บ Users แทน');
+    return;
+  }
   if (users.find(u=>u.nick.toLowerCase()===nick.toLowerCase()&&u.role===role)) {
     alert('มีผู้ใช้ชื่อนี้และตำแหน่งนี้อยู่แล้ว'); return;
   }
   const pinHash = await hashPin(pin);
   const newId   = Math.max(0,...users.map(u=>u.id))+1;
   users.push({id:newId, nick, role, pinHash});
-  saveUsers(users);
+  saveLocalUsers(users);
   renderUserTable();
   document.getElementById('new-user-nick').value='';
   document.getElementById('new-user-pin').value='';
@@ -1269,8 +1394,12 @@ async function addUserForm() {
 
 function deleteUser(id) {
   if (!confirm('ลบผู้ใช้นี้?')) return;
-  const users = (loadUsers()||[]).filter(u=>u.id!==id);
-  saveUsers(users);
+  if (userSource==='sheet') {
+    alert('ระบบอ่านผู้ใช้จาก Google Sheet แล้ว ให้ลบหรือปิด active ในแท็บ Users แทน');
+    return;
+  }
+  const users = (loadLocalUsers()||[]).filter(u=>u.id!==id);
+  saveLocalUsers(users);
   renderUserTable();
   logAction('ลบผู้ใช้ id='+id);
 }
@@ -1439,7 +1568,7 @@ function setOCRStatus(type, html) {
 // ══════════════════════════════
 initAuth();
 addEntry();
-document.getElementById('sheet-url').value = 'https://docs.google.com/spreadsheets/d/1QA_m_FW5wVX16jmkpnj2nmvL9HQa0dyHnCYRf1l_vq8/edit?usp=sharing';
+document.getElementById('sheet-url').value = DEFAULT_GOOGLE_SHEET_URL;
 </script>
 </body>
 </html>
