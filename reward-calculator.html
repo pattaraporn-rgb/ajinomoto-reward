@@ -152,10 +152,79 @@
       .main{margin-left:60px}
       .stats-row{grid-template-columns:1fr}
       .form-row{grid-template-columns:1fr}
+      #ocr-layout{grid-template-columns:1fr}
     }
+
+    /* ══ LOGIN ══ */
+    #login-overlay{position:fixed;inset:0;background:rgba(15,21,53,.92);z-index:9999;display:flex;align-items:center;justify-content:center}
+    #login-box{background:#fff;border-radius:20px;padding:40px 36px;width:360px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+    #login-box .lb-logo{width:56px;height:56px;background:var(--orange);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;margin:0 auto 16px}
+    #login-box h2{font-size:20px;font-weight:700;color:var(--navy);text-align:center;margin-bottom:4px}
+    #login-box .lb-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:24px}
+    #login-err{color:var(--red);font-size:13px;margin-top:10px;display:none;text-align:center}
+    .pin-input{letter-spacing:8px;font-size:20px;font-weight:700;text-align:center}
+
+    /* ══ TOPBAR USER CHIP ══ */
+    #topbar-right{display:flex;align-items:center;gap:10px}
+    .user-chip{background:rgba(246,166,35,.12);color:var(--orange2);font-size:12px;font-weight:600;padding:5px 14px;border-radius:20px;border:1px solid rgba(246,166,35,.3)}
+    .btn-logout{background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.65);font-family:'Sarabun',sans-serif;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;transition:.15s}
+    .btn-logout:hover{color:#fff;border-color:rgba(255,255,255,.6)}
+
+    /* ══ LOG ══ */
+    .log-entry{background:#fafbfc;border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .log-action{font-size:14px;font-weight:600;color:var(--navy)}
+    .log-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .log-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+    .log-ts{font-size:11px;color:var(--muted)}
+
+    /* ══ OCR ══ */
+    #ocr-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    #ocr-panel{display:flex;flex-direction:column;gap:10px}
+    .btn-ocr{width:100%;padding:14px;border:2px dashed var(--border);background:rgba(49,130,206,.04);border-radius:12px;font-family:'Sarabun',sans-serif;font-size:14px;color:#3182ce;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn-ocr:hover{border-color:#3182ce;background:rgba(49,130,206,.1)}
+    #ocr-preview{max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:1.5px solid var(--border);display:none}
+    .ocr-hint{background:#fffbf0;border:1px solid rgba(246,166,35,.3);border-radius:10px;padding:10px 12px;font-size:12px;color:#92680a;line-height:1.7}
+    #ocr-status{font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;display:none;text-align:center}
+    #ocr-results{background:#f0f7ff;border:1.5px solid rgba(49,130,206,.25);border-radius:10px;padding:14px;font-size:13px;display:none}
+    .ocr-field{margin-bottom:6px;color:var(--navy);word-break:break-all}
+    .ocr-lbl{font-weight:700;color:#3182ce;margin-right:4px}
+    .ocr-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:#3182ce;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
+
+<!-- ══ LOGIN OVERLAY ══ -->
+<div id="login-overlay" style="display:none">
+  <div id="login-box">
+    <div class="lb-logo">A</div>
+    <h2>Ajinomoto Loyalty</h2>
+    <div class="lb-sub">กรุณาเข้าสู่ระบบก่อนใช้งาน</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>ตำแหน่ง</label>
+      <select id="login-role">
+        <option value="cs">CS</option>
+        <option value="admin">Admin</option>
+        <option value="dev">Dev</option>
+        <option value="owner">Owner</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>ชื่อเล่น</label>
+      <input type="text" id="login-nick" placeholder="กรอกชื่อเล่น" autocomplete="off"
+        onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label>PIN (4 หลัก)</label>
+      <input type="password" id="login-pin" placeholder="••••" maxlength="4"
+        inputmode="numeric" class="pin-input" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:15px" onclick="doLogin()">
+      เข้าสู่ระบบ
+    </button>
+    <div id="login-err"></div>
+  </div>
+</div>
 
 <!-- ══ SIDEBAR ══ -->
 <aside class="sidebar">
@@ -169,7 +238,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
       <span>คำนวณคะแนน</span>
     </div>
-    <div class="nav-item" onclick="showSec('rewards',this)">
+    <div class="nav-item" id="nav-rewards" onclick="showSec('rewards',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7L2 9l7-1 3-6z"/></svg>
       <span>จัดการของรางวัล</span>
     </div>
@@ -178,15 +247,30 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <span>ประวัติการแลก</span>
     </div>
+    <div class="nav-lbl" style="margin-top:16px">ระบบ</div>
+    <div class="nav-item" id="nav-users" onclick="showSec('users',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>ผู้ใช้งาน</span>
+    </div>
+    <div class="nav-item" id="nav-log" onclick="showSec('log',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span>บันทึกกิจกรรม</span>
+    </div>
   </nav>
-  <div class="sb-foot">v2.0 · 2026</div>
+  <div class="sb-foot" style="display:flex;justify-content:space-between;align-items:center">
+    <span>v2.0 · 2026</span>
+    <button class="btn-logout" onclick="doLogout()">ออก</button>
+  </div>
 </aside>
 
 <!-- ══ MAIN ══ -->
 <main class="main">
   <header class="topbar">
     <div class="topbar-title">Reward Redemption Calculator</div>
-    <span class="badge">🟠 Loyalty</span>
+    <div id="topbar-right">
+      <div id="user-badge"></div>
+      <span class="badge">🟠 Loyalty</span>
+    </div>
   </header>
 
   <div class="content">
@@ -204,17 +288,35 @@
       <div class="card">
         <div class="card-header">
           <div class="ch-icon o">👤</div>
-          <div><h3>ข้อมูลลูกค้า</h3><p>กรอกชื่อและเบอร์โทร</p></div>
+          <div><h3>ข้อมูลลูกค้า</h3><p>กรอกชื่อและเบอร์โทร หรืออัพโหลดภาพสกรีนช็อต</p></div>
         </div>
         <div class="card-body">
-          <div class="form-row">
-            <div class="form-group">
-              <label>ชื่อบริษัท / ชื่อลูกค้า</label>
-              <input type="text" id="cust-name" placeholder="เช่น บจก.ตั้งงี่สุนซูเปอร์สโตร์สาขานาดี" />
+          <div id="ocr-layout">
+            <div>
+              <div class="form-row" style="margin-bottom:0">
+                <div class="form-group">
+                  <label>ชื่อบริษัท / ชื่อลูกค้า</label>
+                  <input type="text" id="cust-name" placeholder="เช่น บจก.รวยไม่ไหวแล้ว" />
+                </div>
+                <div class="form-group">
+                  <label>เบอร์โทรศัพท์</label>
+                  <input type="text" id="cust-tel" placeholder="+66XXXXXX" />
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label>เบอร์โทรศัพท์</label>
-              <input type="text" id="cust-tel" placeholder="เช่น +66885571780" />
+            <div id="ocr-panel">
+              <input type="file" id="ocr-file" accept="image/*" style="display:none" onchange="handleOCRFile(this)" />
+              <button class="btn-ocr" onclick="document.getElementById('ocr-file').click()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                📷 อัพโหลดรูป OCR
+              </button>
+              <div class="ocr-hint">
+                <strong>วิธีใช้:</strong> ถ่ายหน้าจอหน้า Activity จากระบบ Loyalty Admin แล้วอัพโหลด ระบบจะพยายามเติมชื่อ เบอร์ และรายการแลกอัตโนมัติ<br>
+                ⚠️ ความแม่นยำ ~65-75% ควรตรวจสอบก่อนใช้เสมอ
+              </div>
+              <img id="ocr-preview" alt="preview" />
+              <div id="ocr-status"></div>
+              <div id="ocr-results"></div>
             </div>
           </div>
         </div>
@@ -398,6 +500,62 @@
       </div>
     </div>
 
+    <!-- ── ผู้ใช้งาน ── -->
+    <div id="sec-users" class="section">
+      <div class="card">
+        <div class="card-header">
+          <div class="ch-icon" style="background:rgba(128,90,213,.12)">👥</div>
+          <div><h3>จัดการผู้ใช้งาน</h3><p>เพิ่ม/ลบผู้ใช้งาน และกำหนดสิทธิ์</p></div>
+        </div>
+        <div class="card-body">
+          <div style="overflow-x:auto;margin-bottom:20px">
+            <table class="rw-table">
+              <thead><tr><th>ชื่อเล่น</th><th>ตำแหน่ง</th><th>PIN</th><th></th></tr></thead>
+              <tbody id="users-tbody"></tbody>
+            </table>
+          </div>
+          <div style="background:#f8f9fc;border:1.5px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">+ เพิ่มผู้ใช้ใหม่</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+              <div class="form-group" style="margin:0">
+                <label>ชื่อเล่น</label>
+                <input type="text" id="new-user-nick" placeholder="เช่น สมชาย" />
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>ตำแหน่ง</label>
+                <select id="new-user-role">
+                  <option value="cs">CS</option>
+                  <option value="admin">Admin</option>
+                  <option value="dev">Dev</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>PIN (4 หลัก)</label>
+                <input type="password" id="new-user-pin" placeholder="0000" maxlength="4" inputmode="numeric" />
+              </div>
+              <button class="btn btn-primary" onclick="addUserForm()" style="align-self:flex-end">+ เพิ่ม</button>
+            </div>
+          </div>
+          <div style="background:#fffbf0;border:1px solid rgba(246,166,35,.3);border-radius:10px;padding:12px;margin-top:14px;font-size:12px;color:#92680a">
+            💡 <strong>CS</strong> — เข้าได้เฉพาะคำนวณคะแนน + ประวัติ &nbsp;|&nbsp; <strong>Admin / Dev / Owner</strong> — เข้าได้ทุกหน้า
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── บันทึกกิจกรรม ── -->
+    <div id="sec-log" class="section">
+      <div class="card">
+        <div class="card-header">
+          <div class="ch-icon b">📋</div>
+          <div style="flex:1"><h3>บันทึกกิจกรรม</h3><p>ติดตามการใช้งานทั้งหมด (เก็บไว้ 200 รายการล่าสุด)</p></div>
+          <button class="btn btn-secondary" onclick="clearLog()" style="font-size:12px;padding:6px 14px;margin-left:auto">🗑 ล้างบันทึก</button>
+        </div>
+        <div class="card-body"><div id="log-list"></div></div>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </main>
 
@@ -457,6 +615,8 @@ function showSec(name, el) {
   el.classList.add('active');
   if(name==='rewards') renderRwTable();
   if(name==='history') renderHistory();
+  if(name==='log')     renderLog();
+  if(name==='users')   renderUserTable();
 }
 
 // ══════════════════════════════
@@ -613,6 +773,7 @@ function generateSummary() {
   history.unshift({ date: new Date().toLocaleString('th-TH'), customer: name||'(ไม่ระบุชื่อ)', text: out.trim() });
   if(history.length>50) history.pop();
   saveH();
+  logAction(`สรุปผล: ${name||'(ไม่ระบุ)'} (${rows.length} รายการ)`);
 }
 
 function copySummary() {
@@ -633,6 +794,10 @@ function clearAll() {
   document.getElementById('cust-tel').value='';
   document.getElementById('sum-section').style.display='none';
   entrySeq=0; updateStats();
+  const p=document.getElementById('ocr-preview'); if(p){p.style.display='none';p.src='';}
+  const s=document.getElementById('ocr-status'); if(s) s.style.display='none';
+  const r=document.getElementById('ocr-results'); if(r) r.style.display='none';
+  logAction('ล้างข้อมูลทั้งหมด');
 }
 
 // ══════════════════════════════
@@ -659,12 +824,15 @@ function addReward() {
   saveR(); renderRwTable();
   document.getElementById('new-name').value='';
   document.getElementById('new-pts').value='';
+  logAction(`เพิ่มของรางวัล: ${name}`);
 }
 
 function delReward(id) {
   if(!confirm('ลบของรางวัลนี้?')) return;
+  const rname = rewards.find(r=>r.id===id)?.name||'id='+id;
   rewards = rewards.filter(r=>r.id!==id);
   saveR(); renderRwTable();
+  logAction(`ลบของรางวัล: ${rname}`);
 }
 
 // ══════════════════════════════
@@ -735,6 +903,7 @@ async function syncSheet() {
     rewards = newRewards;
     saveR(); renderRwTable();
     showSyncStatus('ok', `✅ โหลดแล้ว ${rewards.length} รายการ`);
+    logAction(`Sync Google Sheets: ${rewards.length} รายการ`);
   } catch(e) {
     console.error(e);
     showSyncStatus('error','❌ โหลดไม่ได้ — ตรวจสอบว่าชีทตั้งค่า "Anyone with link can view"');
@@ -879,6 +1048,7 @@ function importFromCSVText(csvText, filename) {
   rewards = newRewards;
   saveR(); renderRwTable();
   showCSVStatus('ok', `✅ นำเข้าแล้ว ${newRewards.length} รายการ${skipped?` (ข้าม ${skipped} แถว)`:''}`);
+  logAction(`นำเข้า CSV: ${newRewards.length} รายการ`);
   // Reset file input
   document.getElementById('csv-file').value = '';
 }
@@ -894,8 +1064,327 @@ function showCSVStatus(type, msg) {
 }
 
 // ══════════════════════════════
+// AUTH SYSTEM
+// ══════════════════════════════
+const DEFAULT_USERS = [
+  {id:1, nick:'Owner', role:'owner', pin:'1234'}
+];
+let currentUser = null;
+let _ocrParsed  = {name:'', phone:'', items:[]};
+
+function loadUsers()        { return JSON.parse(localStorage.getItem('ajn2_users')||'null')||null; }
+function saveUsers(u)       { localStorage.setItem('ajn2_users', JSON.stringify(u)); }
+
+async function hashPin(pin) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function initAuth() {
+  if (!localStorage.getItem('ajn2_users')) {
+    const hashed = await Promise.all(DEFAULT_USERS.map(async u=>({
+      id:u.id, nick:u.nick, role:u.role, pinHash: await hashPin(u.pin)
+    })));
+    saveUsers(hashed);
+  }
+  const sess = JSON.parse(sessionStorage.getItem('ajn2_session')||'null');
+  if (sess) {
+    currentUser = sess;
+    document.getElementById('login-overlay').style.display = 'none';
+    applySession();
+  } else {
+    document.getElementById('login-overlay').style.display = 'flex';
+  }
+}
+
+async function doLogin() {
+  const nick  = document.getElementById('login-nick').value.trim();
+  const role  = document.getElementById('login-role').value;
+  const pin   = document.getElementById('login-pin').value.trim();
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+  if (!nick)               { errEl.textContent='กรุณากรอกชื่อเล่น'; errEl.style.display='block'; return; }
+  if (!/^\d{4}$/.test(pin)){ errEl.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; errEl.style.display='block'; return; }
+  const users   = loadUsers()||[];
+  const pinHash = await hashPin(pin);
+  const user    = users.find(u=>u.nick.toLowerCase()===nick.toLowerCase()&&u.role===role&&u.pinHash===pinHash);
+  if (!user) {
+    errEl.textContent = 'ชื่อเล่น, ตำแหน่ง หรือ PIN ไม่ถูกต้อง';
+    errEl.style.display = 'block';
+    document.getElementById('login-pin').value = '';
+    return;
+  }
+  const sess = {id:user.id, nick:user.nick, role:user.role, loginAt:new Date().toISOString()};
+  sessionStorage.setItem('ajn2_session', JSON.stringify(sess));
+  currentUser = sess;
+  document.getElementById('login-overlay').style.display = 'none';
+  applySession();
+  logAction('เข้าสู่ระบบ');
+}
+
+function doLogout() {
+  if (!confirm('ออกจากระบบ?')) return;
+  logAction('ออกจากระบบ');
+  sessionStorage.removeItem('ajn2_session');
+  location.reload();
+}
+
+function applySession() {
+  const badge = document.getElementById('user-badge');
+  if (badge && currentUser) {
+    const rl = {owner:'Owner',admin:'Admin',dev:'Dev',cs:'CS'};
+    badge.innerHTML = `<span class="user-chip">${currentUser.nick} · ${rl[currentUser.role]||currentUser.role}</span>`;
+  }
+  if (currentUser && currentUser.role==='cs') {
+    const nr = document.getElementById('nav-rewards'); if(nr) nr.style.display='none';
+    const nu = document.getElementById('nav-users');   if(nu) nu.style.display='none';
+  }
+}
+
+// ══════════════════════════════
+// ACTIVITY LOG
+// ══════════════════════════════
+function logAction(action) {
+  if (!currentUser) return;
+  const log = JSON.parse(localStorage.getItem('ajn2_actlog')||'[]');
+  log.unshift({ts:new Date().toLocaleString('th-TH'), nick:currentUser.nick, role:currentUser.role, action});
+  if (log.length>200) log.splice(200);
+  localStorage.setItem('ajn2_actlog', JSON.stringify(log));
+}
+
+function renderLog() {
+  const log = JSON.parse(localStorage.getItem('ajn2_actlog')||'[]');
+  const el  = document.getElementById('log-list');
+  if (!log.length) {
+    el.innerHTML='<div class="empty-state"><div class="icon">📋</div><p>ยังไม่มีบันทึกกิจกรรม</p></div>';
+    return;
+  }
+  const rc={owner:'#805ad5',admin:'#3182ce',dev:'#38a169',cs:'#dd6b20'};
+  el.innerHTML = log.map(e=>`
+    <div class="log-entry">
+      <div class="log-action">${e.action}</div>
+      <div class="log-meta">
+        <span class="log-badge" style="background:${(rc[e.role]||'#718096')}22;color:${rc[e.role]||'#718096'}">${e.nick} · ${e.role}</span>
+        <span class="log-ts">${e.ts}</span>
+      </div>
+    </div>`).join('');
+}
+
+function clearLog() {
+  if (!confirm('ล้างบันทึกกิจกรรมทั้งหมด?')) return;
+  localStorage.removeItem('ajn2_actlog');
+  renderLog();
+}
+
+// ══════════════════════════════
+// USER MANAGEMENT
+// ══════════════════════════════
+function renderUserTable() {
+  const users = loadUsers()||[];
+  const el = document.getElementById('users-tbody');
+  if (!el) return;
+  const rl={owner:'Owner',admin:'Admin',dev:'Dev',cs:'CS'};
+  const rc={owner:'#805ad5',admin:'#3182ce',dev:'#38a169',cs:'#dd6b20'};
+  el.innerHTML = users.map(u=>`
+    <tr>
+      <td style="font-weight:600;color:var(--navy)">${u.nick}</td>
+      <td><span style="background:${(rc[u.role]||'#718096')}22;color:${rc[u.role]||'#718096'};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${rl[u.role]||u.role}</span></td>
+      <td style="color:var(--muted);font-size:13px;letter-spacing:4px">••••</td>
+      <td>${(currentUser&&u.id!==currentUser.id)?`<button class="btn-icon" onclick="deleteUser(${u.id})">🗑</button>`:'—'}</td>
+    </tr>`).join('');
+}
+
+async function addUserForm() {
+  const nick = document.getElementById('new-user-nick').value.trim();
+  const role = document.getElementById('new-user-role').value;
+  const pin  = document.getElementById('new-user-pin').value.trim();
+  if (!nick)               { alert('กรุณากรอกชื่อเล่น'); return; }
+  if (!/^\d{4}$/.test(pin)){ alert('PIN ต้องเป็นตัวเลข 4 หลัก'); return; }
+  const users = loadUsers()||[];
+  if (users.find(u=>u.nick.toLowerCase()===nick.toLowerCase()&&u.role===role)) {
+    alert('มีผู้ใช้ชื่อนี้และตำแหน่งนี้อยู่แล้ว'); return;
+  }
+  const pinHash = await hashPin(pin);
+  const newId   = Math.max(0,...users.map(u=>u.id))+1;
+  users.push({id:newId, nick, role, pinHash});
+  saveUsers(users);
+  renderUserTable();
+  document.getElementById('new-user-nick').value='';
+  document.getElementById('new-user-pin').value='';
+  logAction(`เพิ่มผู้ใช้: ${nick} (${role})`);
+}
+
+function deleteUser(id) {
+  if (!confirm('ลบผู้ใช้นี้?')) return;
+  const users = (loadUsers()||[]).filter(u=>u.id!==id);
+  saveUsers(users);
+  renderUserTable();
+  logAction('ลบผู้ใช้ id='+id);
+}
+
+// ══════════════════════════════
+// OCR
+// ══════════════════════════════
+let _tesseractLoading = false;
+
+function loadTesseractScript(cb) {
+  if (window.Tesseract) { cb(); return; }
+  if (_tesseractLoading) { setTimeout(()=>loadTesseractScript(cb), 300); return; }
+  _tesseractLoading = true;
+  const inject = (src, fallbackSrc) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload  = () => { _tesseractLoading=false; cb(); };
+    s.onerror = fallbackSrc
+      ? () => inject(fallbackSrc, null)
+      : () => { _tesseractLoading=false; setOCRStatus('error','โหลด OCR engine ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต'); };
+    document.head.appendChild(s);
+  };
+  inject(
+    'https://unpkg.com/tesseract.js@4/dist/tesseract.min.js',
+    'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js'
+  );
+}
+
+function handleOCRFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const prev = document.getElementById('ocr-preview');
+    prev.src   = dataUrl;
+    prev.style.display = 'block';
+    document.getElementById('ocr-results').style.display = 'none';
+    setOCRStatus('loading','<span class="ocr-spinner"></span> กำลังโหลด OCR engine...');
+    loadTesseractScript(() => {
+      setOCRStatus('loading','<span class="ocr-spinner"></span> กำลังสแกน... (อาจใช้เวลา 15-30 วินาที)');
+      runOCR(dataUrl);
+    });
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+async function runOCR(dataUrl) {
+  try {
+    const worker = await Tesseract.createWorker('tha+eng', 1, {
+      logger: m => {
+        if (m.status==='recognizing text' && m.progress) {
+          setOCRStatus('loading',`<span class="ocr-spinner"></span> สแกน ${Math.round(m.progress*100)}%...`);
+        }
+      }
+    });
+    const { data:{text} } = await worker.recognize(dataUrl);
+    await worker.terminate();
+    parseOCRText(text);
+  } catch(err) {
+    console.error('OCR error', err);
+    setOCRStatus('error','❌ สแกนไม่สำเร็จ: '+err.message);
+  }
+}
+
+function parseOCRText(raw) {
+  const text = raw||'';
+  let foundName='', foundPhone='', foundItems=[];
+
+  // Company name: look for business prefix
+  const cmpM = text.match(/(บจก\.|บริษัท|ห้าง|หจก\.|ร้าน)[^\n\r]{1,60}/u);
+  if (cmpM) foundName = cmpM[0].trim();
+
+  // Phone: +66XXXXXXXX or 0X-XXX-XXXX patterns
+  const phM = text.match(/(\+66\d[\d\s\-]{7,11}|0[6-9]\d[\d\s\-]{7,8})/);
+  if (phM) foundPhone = phM[0].replace(/[\s\-]/g,'').replace(/^0/,'+66');
+
+  // Loyalty Admin reward lines
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  lines.forEach((line,i) => {
+    // Format: "product name -12345 points"
+    const m1 = line.match(/^(.+?)\s*[-–]\s*(\d[\d,]+)\s+points?/i);
+    if (m1) {
+      const pts = parseInt(m1[2].replace(/,/g,''));
+      if (pts>0) { foundItems.push({name:m1[1].trim(), pts}); return; }
+    }
+    // Format: "-12345 points" on its own line (prev line = product name)
+    const m2 = line.match(/^-(\d[\d,]+)\s+points?$/i);
+    if (m2 && i>0) {
+      const prev = lines[i-1];
+      const pts  = parseInt(m2[1].replace(/,/g,''));
+      if (pts>0 && prev && !/points/i.test(prev)) foundItems.push({name:prev.trim(), pts});
+    }
+  });
+
+  showOCRResults(foundName, foundPhone, foundItems);
+}
+
+function showOCRResults(name, phone, items) {
+  _ocrParsed = {name, phone, items};
+  document.getElementById('ocr-status').style.display='none';
+  if (!name && !phone && !items.length) {
+    setOCRStatus('warn','⚠️ ไม่พบข้อมูลที่ต้องการ — กรุณากรอกด้วยตนเอง');
+    return;
+  }
+  const resEl = document.getElementById('ocr-results');
+  let html = '<div style="font-weight:700;color:#3182ce;margin-bottom:10px">📋 ผลสแกน OCR — กรุณาตรวจสอบก่อนใช้</div>';
+  if (name)  html += `<div class="ocr-field"><span class="ocr-lbl">ชื่อ:</span>${name}</div>`;
+  if (phone) html += `<div class="ocr-field"><span class="ocr-lbl">โทร:</span>${phone}</div>`;
+  if (items.length) {
+    html += `<div class="ocr-field" style="margin-top:8px"><span class="ocr-lbl">รายการ (${items.length}):</span></div>`;
+    items.forEach(it => {
+      html += `<div style="font-size:12px;color:var(--muted);margin-left:12px;margin-bottom:2px">• ${it.name} — ${it.pts.toLocaleString()} pts</div>`;
+    });
+  }
+  html += '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+  if (name||phone) html += `<button class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="applyOCRData()">✅ ใช้ชื่อ/เบอร์</button>`;
+  if (items.length) html += `<button class="btn btn-navy" style="padding:8px 16px;font-size:13px" onclick="applyOCRItems()">📋 เพิ่มรายการ (${items.length})</button>`;
+  html += '</div>';
+  resEl.innerHTML = html;
+  resEl.style.display = 'block';
+}
+
+function applyOCRData() {
+  const {name, phone} = _ocrParsed;
+  const nameEl  = document.getElementById('cust-name');
+  const phoneEl = document.getElementById('cust-tel');
+  if (name  && (!nameEl.value  || confirm('แทนที่ชื่อลูกค้าเดิม?')))  nameEl.value  = name;
+  if (phone && (!phoneEl.value || confirm('แทนที่เบอร์โทรเดิม?')))  phoneEl.value = phone;
+}
+
+function applyOCRItems() {
+  const {items} = _ocrParsed;
+  items.forEach(item => {
+    let matched = rewards.find(r=>r.pts===item.pts);
+    if (!matched) {
+      const frag = item.name.slice(0,8).toLowerCase();
+      matched = rewards.find(r=>r.name.toLowerCase().includes(frag));
+    }
+    addEntry();
+    const id = entrySeq;
+    if (matched) {
+      document.getElementById('ri'+id).value    = matched.name;
+      document.getElementById('rpts'+id).value  = matched.pts;
+      document.getElementById('runit'+id).value = matched.unit;
+      document.getElementById('pu'+id).value    = item.pts;
+      calcEntry(id);
+    } else {
+      document.getElementById('ri'+id).value = item.name;
+    }
+  });
+  logAction(`OCR เพิ่มรายการ: ${items.length} รายการ`);
+}
+
+function setOCRStatus(type, html) {
+  const el = document.getElementById('ocr-status');
+  el.style.display='block'; el.innerHTML=html;
+  const styles={loading:['rgba(49,130,206,.08)','rgba(49,130,206,.25)','#3182ce'],error:['rgba(229,62,62,.08)','rgba(229,62,62,.25)','var(--red)'],warn:['rgba(246,166,35,.08)','rgba(246,166,35,.25)','var(--orange2)']};
+  const [bg,border,color]=styles[type]||styles.loading;
+  el.style.background=bg; el.style.border=`1px solid ${border}`; el.style.color=color;
+}
+
+// ══════════════════════════════
 // INIT
 // ══════════════════════════════
+initAuth();
 addEntry();
 document.getElementById('sheet-url').value = 'https://docs.google.com/spreadsheets/d/1QA_m_FW5wVX16jmkpnj2nmvL9HQa0dyHnCYRf1l_vq8/edit?usp=sharing';
 </script>
