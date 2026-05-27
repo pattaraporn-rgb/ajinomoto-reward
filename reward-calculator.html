@@ -197,32 +197,63 @@
 <!-- ══ LOGIN OVERLAY ══ -->
 <div id="login-overlay" style="display:none">
   <div id="login-box">
-    <div class="lb-logo">A</div>
-    <h2>Ajinomoto Loyalty</h2>
-    <div class="lb-sub">กรุณาเข้าสู่ระบบก่อนใช้งาน</div>
-    <div class="form-group" style="margin-bottom:12px">
-      <label>ตำแหน่ง</label>
-      <select id="login-role">
-        <option value="cs">CS</option>
-        <option value="admin">Admin</option>
-        <option value="dev">Dev</option>
-        <option value="owner">Owner</option>
-      </select>
+
+    <!-- ── PANE: ตั้งค่าครั้งแรก ── -->
+    <div id="setup-pane" style="display:none">
+      <div class="lb-logo">A</div>
+      <h2>ตั้งค่าครั้งแรก</h2>
+      <div class="lb-sub">สร้างบัญชี Owner เพื่อเริ่มใช้งาน</div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>ชื่อเล่น</label>
+        <input type="text" id="setup-nick" placeholder="กรอกชื่อเล่น" autocomplete="off"
+          onkeydown="if(event.key==='Enter')doSetup()" />
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>PIN (4 หลัก)</label>
+        <input type="password" id="setup-pin" placeholder="••••" maxlength="4"
+          inputmode="numeric" class="pin-input" onkeydown="if(event.key==='Enter')doSetup()" />
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label>ยืนยัน PIN</label>
+        <input type="password" id="setup-pin2" placeholder="••••" maxlength="4"
+          inputmode="numeric" class="pin-input" onkeydown="if(event.key==='Enter')doSetup()" />
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:15px" onclick="doSetup()">
+        สร้างบัญชี
+      </button>
+      <div id="setup-err" style="color:var(--red);font-size:13px;margin-top:10px;display:none;text-align:center"></div>
     </div>
-    <div class="form-group" style="margin-bottom:12px">
-      <label>ชื่อเล่น</label>
-      <input type="text" id="login-nick" placeholder="กรอกชื่อเล่น" autocomplete="off"
-        onkeydown="if(event.key==='Enter')doLogin()" />
+
+    <!-- ── PANE: Login ── -->
+    <div id="login-pane" style="display:none">
+      <div class="lb-logo">A</div>
+      <h2>Ajinomoto Loyalty</h2>
+      <div class="lb-sub">กรุณาเข้าสู่ระบบก่อนใช้งาน</div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>ตำแหน่ง</label>
+        <select id="login-role">
+          <option value="cs">CS</option>
+          <option value="admin">Admin</option>
+          <option value="dev">Dev</option>
+          <option value="owner">Owner</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>ชื่อเล่น</label>
+        <input type="text" id="login-nick" placeholder="กรอกชื่อเล่น" autocomplete="off"
+          onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label>PIN (4 หลัก)</label>
+        <input type="password" id="login-pin" placeholder="••••" maxlength="4"
+          inputmode="numeric" class="pin-input" onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:15px" onclick="doLogin()">
+        เข้าสู่ระบบ
+      </button>
+      <div id="login-err"></div>
     </div>
-    <div class="form-group" style="margin-bottom:20px">
-      <label>PIN (4 หลัก)</label>
-      <input type="password" id="login-pin" placeholder="••••" maxlength="4"
-        inputmode="numeric" class="pin-input" onkeydown="if(event.key==='Enter')doLogin()" />
-    </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:15px" onclick="doLogin()">
-      เข้าสู่ระบบ
-    </button>
-    <div id="login-err"></div>
+
   </div>
 </div>
 
@@ -1066,45 +1097,57 @@ function showCSVStatus(type, msg) {
 // ══════════════════════════════
 // AUTH SYSTEM
 // ══════════════════════════════
-const DEFAULT_USERS = [
-  {id:1, nick:'dear', role:'owner', pin:'9944'}
-];
 let currentUser = null;
 let _ocrParsed  = {name:'', phone:'', items:[]};
 
-function loadUsers()        { return JSON.parse(localStorage.getItem('ajn2_users')||'null')||null; }
-function saveUsers(u)       { localStorage.setItem('ajn2_users', JSON.stringify(u)); }
+function loadUsers() { return JSON.parse(localStorage.getItem('ajn2_users')||'[]'); }
+function saveUsers(u){ localStorage.setItem('ajn2_users', JSON.stringify(u)); }
 
 async function hashPin(pin) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-async function seedDefaultUsers() {
-  const hashed = await Promise.all(DEFAULT_USERS.map(async u=>({
-    id:u.id, nick:u.nick, role:u.role, pinHash: await hashPin(u.pin)
-  })));
-  saveUsers(hashed);
+async function initAuth() {
+  const users = loadUsers();
+  const sess  = JSON.parse(sessionStorage.getItem('ajn2_session')||'null');
+
+  // Valid session that matches a real user
+  if (sess && users.find(u=>u.id===sess.id)) {
+    currentUser = sess;
+    applySession();
+    return;
+  }
+  sessionStorage.removeItem('ajn2_session');
+
+  // Show overlay in correct mode
+  document.getElementById('login-overlay').style.display = 'flex';
+  if (!users.length) {
+    document.getElementById('setup-pane').style.display = 'block';
+    document.getElementById('login-pane').style.display = 'none';
+  } else {
+    document.getElementById('setup-pane').style.display = 'none';
+    document.getElementById('login-pane').style.display = 'block';
+  }
 }
 
-async function initAuth() {
-  const stored = localStorage.getItem('ajn2_users');
-  if (!stored) {
-    await seedDefaultUsers();
-  } else {
-    // migrate: replace old placeholder-only default with new default
-    const users = JSON.parse(stored);
-    const isOldDefault = users.length===1 && users[0].nick==='Owner' && users[0].role==='owner';
-    if (isOldDefault) await seedDefaultUsers();
-  }
-  const sess = JSON.parse(sessionStorage.getItem('ajn2_session')||'null');
-  if (sess) {
-    currentUser = sess;
-    document.getElementById('login-overlay').style.display = 'none';
-    applySession();
-  } else {
-    document.getElementById('login-overlay').style.display = 'flex';
-  }
+async function doSetup() {
+  const nick  = document.getElementById('setup-nick').value.trim();
+  const pin   = document.getElementById('setup-pin').value.trim();
+  const pin2  = document.getElementById('setup-pin2').value.trim();
+  const errEl = document.getElementById('setup-err');
+  errEl.style.display = 'none';
+  if (!nick)               { errEl.textContent='กรุณากรอกชื่อเล่น'; errEl.style.display='block'; return; }
+  if (!/^\d{4}$/.test(pin)){ errEl.textContent='PIN ต้องเป็นตัวเลข 4 หลัก'; errEl.style.display='block'; return; }
+  if (pin !== pin2)        { errEl.textContent='PIN ทั้งสองไม่ตรงกัน'; errEl.style.display='block'; return; }
+  const pinHash = await hashPin(pin);
+  saveUsers([{id:1, nick, role:'owner', pinHash}]);
+  const sess = {id:1, nick, role:'owner', loginAt:new Date().toISOString()};
+  sessionStorage.setItem('ajn2_session', JSON.stringify(sess));
+  currentUser = sess;
+  document.getElementById('login-overlay').style.display = 'none';
+  applySession();
+  logAction('ตั้งค่าบัญชีครั้งแรก');
 }
 
 async function doLogin() {
