@@ -1067,7 +1067,7 @@ function showCSVStatus(type, msg) {
 // AUTH SYSTEM
 // ══════════════════════════════
 const DEFAULT_USERS = [
-  {id:1, nick:'Owner', role:'owner', pin:'1234'}
+  {id:1, nick:'dear', role:'owner', pin:'9944'}
 ];
 let currentUser = null;
 let _ocrParsed  = {name:'', phone:'', items:[]};
@@ -1080,12 +1080,22 @@ async function hashPin(pin) {
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+async function seedDefaultUsers() {
+  const hashed = await Promise.all(DEFAULT_USERS.map(async u=>({
+    id:u.id, nick:u.nick, role:u.role, pinHash: await hashPin(u.pin)
+  })));
+  saveUsers(hashed);
+}
+
 async function initAuth() {
-  if (!localStorage.getItem('ajn2_users')) {
-    const hashed = await Promise.all(DEFAULT_USERS.map(async u=>({
-      id:u.id, nick:u.nick, role:u.role, pinHash: await hashPin(u.pin)
-    })));
-    saveUsers(hashed);
+  const stored = localStorage.getItem('ajn2_users');
+  if (!stored) {
+    await seedDefaultUsers();
+  } else {
+    // migrate: replace old placeholder-only default with new default
+    const users = JSON.parse(stored);
+    const isOldDefault = users.length===1 && users[0].nick==='Owner' && users[0].role==='owner';
+    if (isOldDefault) await seedDefaultUsers();
   }
   const sess = JSON.parse(sessionStorage.getItem('ajn2_session')||'null');
   if (sess) {
